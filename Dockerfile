@@ -1,17 +1,12 @@
-# Imagen base
-FROM node:18-alpine
+FROM python:3.9-slim
 
-# Crear directorio
 WORKDIR /app
 
-# Copiar archivos y dependencias
-COPY package*.json ./
-RUN npm install
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
 COPY . .
 
-# Exponer puerto
-EXPOSE 3000
+EXPOSE 5000
 
-# Comando de inicio
-CMD ["npm", "start"]
+CMD ["python", "app.py"]
