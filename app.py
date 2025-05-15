@@ -1,8 +1,12 @@
 from flask import Flask, request, render_template, jsonify
 import jwt
+import requests
 
 app = Flask(__name__)
-SECRET_KEY = 'clave-secreta-compartida'  # Debe coincidir con la del servicio de auth
+SECRET_KEY = 'clave-secreta-compartida'  # Debe ser la misma en todos los servicios
+
+# URL del servicio de analítica (ajusta con tu dominio real de DigitalOcean)
+ANALYTICS_URL = 'https://tu-digitalocean-app.com/api/evento'
 
 # Simulación de base de datos de productos
 PRODUCTOS = [
@@ -11,7 +15,18 @@ PRODUCTOS = [
     {'id': 3, 'nombre': 'Mochila', 'precio': 20.0}
 ]
 
-# Interfaz web
+# Función para enviar eventos al servicio de analítica
+def enviar_evento(tipo, detalle, token):
+    try:
+        response = requests.post(ANALYTICS_URL, json={
+            'tipo': tipo,
+            'detalle': detalle
+        }, headers={'Authorization': f'Bearer {token}'})
+        response.raise_for_status()
+    except Exception as e:
+        print("Error al enviar evento a analítica:", e)
+
+# Interfaz web protegida por token (por URL)
 @app.route('/productos')
 def productos_web():
     token = request.args.get('token')
@@ -23,17 +38,23 @@ def productos_web():
     except jwt.exceptions.InvalidTokenError:
         return "Token inválido", 401
 
-# API protegida
+# API protegida por token (en cabecera Authorization)
 @app.route('/api/productos')
 def productos_api():
-    token = request.headers.get('Authorization')
-    if not token:
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
         return jsonify({'error': 'Falta token'}), 401
+
+    token = auth_header.replace("Bearer ", "")
     try:
-        jwt.decode(token.replace("Bearer ", ""), SECRET_KEY, algorithms=['HS256'])
-        return jsonify(PRODUCTOS)
+        jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
     except jwt.exceptions.InvalidTokenError:
         return jsonify({'error': 'Token inválido'}), 401
+
+    # Enviar evento a analítica
+    enviar_evento('consulta_productos', 'usuario consultó productos', token)
+
+    return jsonify(PRODUCTOS)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
